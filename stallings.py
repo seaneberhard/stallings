@@ -8,7 +8,7 @@ class Generator(object):
         return Generator(self.name, not self.inv)
     
     def __mul__(self, other):
-        return other.nbrs[self]
+        return other[self]
         
     def __lt__(self, other):
         return (self.name, self.inv) < (other.name, other.inv)
@@ -22,28 +22,52 @@ class Generator(object):
     
 class Graph(object):
     # make a basic Stallings graph on generators gens on k roots
-    def __init__(self, gens = [], k = 1):
-        self.gens = sorted(list(set(gens + [g.inv() for g in gens])))
-        self.roots = [Node() for i in range(k)]
-        self.numVerts = k
+    def __init__(self):
+        self.roots = [Node()]
+        self.verts = self.roots[:]
         self.numEdges = 0
+        
+    def Refresh(self):
+        verts = set(self.roots)
+        stack = self.roots[:]
+        while len(stack) > 0:
+            v = stack.pop()
+            for g in v.nbrs():
+                if not g * v in verts:
+                    verts.add(g * v)
+                    stack.append(g * v)
+        self.verts = list(verts)
+        self.numEdges = sum([v.degree() for v in self.verts])/2
                            
     def NumVertices(self):
-        return self.numVerts
+        return len(self.verts)
                            
     def NumEdges(self):
         return self.numEdges
                            
     def Chi(self):
         return self.NumVertices() - self.NumEdges()
-    
-    # do Stallings foldings where needed, and just generally tidy up
-    def Fold(self):
         
     def eta(self, other):
+        try:
+            eta = {}
+            verts = set(self.roots)
+            stack = self.roots[:]
+            for i in range(len(self.roots)):
+                eta[self.roots[i]] = other.roots[i]
+            while len(stack) > 0:
+                v = stack.pop()
+                for g in v.nbrs():
+                    if not g * v in verts:
+                        verts.add(g * v)
+                        stack.append(g * v)
+                        eta[g * v] = g * eta[v]
+            return eta
+        except KeyError:
+            return None
         
     def __le__(self, other):
-        return self.eta(other)
+        return not self.eta(other) is None
     
     def __eq__(self, other):
         return self <= other and other <= self
@@ -56,42 +80,64 @@ class Graph(object):
             comb.roots[len(self.roots) + i].merge(other.roots[i])
         comb.Fold()
         return comb
-    
-    def copy(self):
-        copy = Graph(self.gens, len(self.roots))
         
-    
-    def __mul__(self, k):
-        return sum([self.copy() for i in range(k)])
-    
     @classmethod
-    def FromWord(cls, word):
-        graph = Graph(word)
-        node = graph.roots[0]
-        for g in word:
-            node.nbrs[g] = Node()
-            node = node.nbrs[g]
-        node.merge(graph.roots[0])
-        graph.Fold()
-        return graph
-        
     def FromWords(cls, words):
-        graph = sum([Graph.FromWord(w) for w in words])
-        root = Node()
-        for r in graph.roots:
-            root.merge(r)
-        graph.roots = [root]
-        graph.Fold()
+        graph = Graph()
+        for word in words:
+            node = graph.roots[0]
+            for g in word:
+                node[g] = Node()
+                node = node[g]
+            node.merge(graph.roots[0])
         return graph
         
 class Node(object):
     def __init__(self):
-        self.nbrs = {}
-        self.dup = set([self]) # nodes waiting to be folded into this one
+        self._nbrs = {}
+        # union-find fields
+        self._up = self
+        self._rank = 0
     
-    def degree(self):
-        return len(self.nbrs)
+    def _find(self):
+        if self._up != self:
+            self._up = self._up._find()
+        return self._up
     
     def merge(self, other):
-        self.dup += other.dup
-        other.dup = self.dup
+        # find reps and quit if they are the same
+        find1 = self._find()
+        find2 = other._find()
+        if find1 == find2:
+            return
+        
+        # identify the better root and call it find1
+        if find1._rank < find2._rank:
+            temp = find1
+            find1 = find2
+            find2 = temp
+        elif find1._rank == find2._rank:
+            find1._rank += 1
+        find2._up = find1
+        
+        # absorb neighbours from find2 into find1
+        for (g,nbr) in find2._nbrs.items():
+            find1[g] = nbr
+            
+    def nbrs(self):
+        return self._find()._nbrs
+    
+    def degree(self):
+        return len(self.nbrs())
+    
+    def __getitem__(self, g):
+        nbrs = self.nbrs()
+        nbrs[g] = nbrs[g]._find()
+        return nbrs[g]
+    
+    def __setitem__(self, g, nbr):
+        try:
+            self[g].merge(nbr)
+        except KeyError:
+            self.nbrs()[g] = nbr._find()
+            nbr[g.inv()] = self
