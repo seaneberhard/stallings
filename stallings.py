@@ -1,25 +1,3 @@
-<<<<<<< HEAD
-def Generator(object):
-  def __init__(self, name):
-    self.name = name
-    while self.name.endswith("ii"):
-      self.name = self.name[:-2]
-  
-  def inv(self):
-    if self.name.endswith("i"):
-      return Generator(self.name[:-1])
-    return Generator(self.name + "i")
-    
-  def __eq__(self, other):
-    if isinstance(other, self.__class__):
-      return self.name == other.name
-    return NotImplemented
-    
-  def __ne__(self, other):
-    return not self == other
-    
-  def __hash__(self):
-=======
 @total_ordering
 class Generator(object):
     def __init__(self, name, inv = False):
@@ -146,11 +124,11 @@ class Node(object):
         for (g,nbr) in find2._nbrs.items():
             find1[g] = nbr
             
-    def nbrs(self):
-        return self._find()._nbrs
+    def gens(self):
+        return sorted(self._find()._nbrs.keys.gens())
     
     def degree(self):
-        return len(self.nbrs())
+        return len(self.gens)
     
     def __getitem__(self, g):
         nbrs = self.nbrs()
@@ -163,4 +141,3 @@ class Node(object):
         except KeyError:
             self.nbrs()[g] = nbr._find()
             nbr[g.inv()] = self
->>>>>>> ac590bf80a511ecb94c2d4c4c0d9ad50e51c1082
