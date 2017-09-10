@@ -71,12 +71,32 @@ class Graph(object):
     
     def __add__(self, other):
         comb = Graph()
-        comb.roots = self.roots + other.roots
+        comb.roots = self.copy().roots + other.copy().roots
         comb.Refresh()
         return comb
+
+    def __mul__(self, k):
+        return sum([self] * k)
+    
+    def copy(self):
+        for r in self.roots:
+            if r not in eta:
+                eta[r] = Node()
+        stack = eta.keys()[:]
+        while len(stack) > 0:
+            v = stack.pop()
+            for g in v.gens():
+                if not g * v in eta:
+                    eta[g * v] = Node()
+                    stack.append(g * v)
+                eta[v][g] = eta[g * v]
+        graph = Graph()
+        graph.roots = [eta(r) for r in self.roots]
+        graph.Refresh()
+        return graph
         
     @classmethod
-    def FromWords(cls, words):
+    def fromWords(cls, words):
         graph = Graph()
         for word in words:
             node = graph.roots[0]
@@ -85,7 +105,16 @@ class Graph(object):
                 node = node[g]
             node.merge(graph.roots[0])
         return graph
-        
+
+    def children(self):
+        graphs = []
+        return graphs
+
+    def descendents(self):
+        graphs = []
+        rho = {}
+        return (graphs, rho)
+
 class Node(object):
     def __init__(self):
         self._nbrs = {}
@@ -131,10 +160,8 @@ class Node(object):
             self._find()._nbrs[g] = nbr._find()
             nbr[g.inv()] = self
 
-    def __delitem__(self, g):
     def __rmul__(self, other): 
         return self[other]
-
 
     def __eq__(self, other):
         return self._find() == other._find()
