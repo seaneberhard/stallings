@@ -6,9 +6,6 @@ class Generator(object):
         
     def inv(self):
         return Generator(self.name, not self.inv)
-    
-    def __mul__(self, other):
-        return other[self]
         
     def __lt__(self, other):
         return (self.name, self.inv) < (other.name, other.inv)
@@ -21,7 +18,7 @@ class Generator(object):
     
     
 class Graph(object):
-    # make a basic Stallings graph on generators gens on k roots
+    # make a basic Stallings graph
     def __init__(self):
         self.roots = [Node()]
         self.verts = self.roots[:]
@@ -32,7 +29,7 @@ class Graph(object):
         stack = self.roots[:]
         while len(stack) > 0:
             v = stack.pop()
-            for g in v.nbrs():
+            for g in v.gens():
                 if not g * v in verts:
                     verts.add(g * v)
                     stack.append(g * v)
@@ -57,7 +54,7 @@ class Graph(object):
                 eta[self.roots[i]] = other.roots[i]
             while len(stack) > 0:
                 v = stack.pop()
-                for g in v.nbrs():
+                for g in v.gens():
                     if not g * v in verts:
                         verts.add(g * v)
                         stack.append(g * v)
@@ -73,12 +70,9 @@ class Graph(object):
         return self <= other and other <= self
     
     def __add__(self, other):
-        comb = Graph(self.gens + other.gens, len(self.roots) + len(other.roots))
-        for i in range(len(self.roots)):
-            comb.roots[i].merge(self.roots[i])
-        for i in range(len(other.roots)):
-            comb.roots[len(self.roots) + i].merge(other.roots[i])
-        comb.Fold()
+        comb = Graph()
+        comb.roots = self.roots + other.roots
+        comb.Refresh()
         return comb
         
     @classmethod
@@ -125,19 +119,27 @@ class Node(object):
             find1[g] = nbr
             
     def gens(self):
-        return sorted(self._find()._nbrs.keys.gens())
+        return sorted(self._find()._nbrs.keys())
     
     def degree(self):
-        return len(self.gens)
+        return len(self.gens())
     
     def __getitem__(self, g):
-        nbrs = self.nbrs()
-        nbrs[g] = nbrs[g]._find()
-        return nbrs[g]
-    
-    def __setitem__(self, g, nbr):
         try:
             self[g].merge(nbr)
         except KeyError:
-            self.nbrs()[g] = nbr._find()
+            self._find()._nbrs[g] = nbr._find()
             nbr[g.inv()] = self
+
+    def __delitem__(self, g):
+    def __rmul__(self, other): 
+        return self[other]
+
+
+    def __eq__(self, other):
+        return self._find() == other._find()
+
+    def __hash__(self):
+        if self.up == self:
+            return hash(super(object, self))
+        return hash(self._find())
