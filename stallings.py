@@ -27,6 +27,7 @@ class Graph(object):
     def rehash(self):
         count = 0
         labels = {}
+        self.roots = [r.find() for r in self.roots]
         for r in self.roots:
             if not r in labels:
                 labels[r] = count
@@ -46,12 +47,9 @@ class Graph(object):
 
     def __hash__(self):
         return self._hash
-
-    def __eq__(self, other):
-        return self._hash = other._hash
       
     def numVertices(self):
-        return self._numVerts
+        return len(self._verts)
                            
     def numEdges(self):
         return self._numEdges
@@ -73,9 +71,17 @@ class Graph(object):
                         verts.add(g * v)
                         stack.append(g * v)
                         eta[g * v] = g * eta[v]
+                    elif not eta[g * v] == g * eta[v]:
+                        return None
             return eta
         except KeyError:
             return None
+
+    def __le__(self, other):
+        return not self.eta(other) is None
+
+    def __eq__(self, other):
+        return self <= other and other <= self 
     
     def __add__(self, other):
         comb = Graph()
@@ -121,8 +127,9 @@ class Graph(object):
         for i in range(self.numVertices()):
             for j in range(i+1, self.numVertices()):
                 graph = self.copy()
-                u = graph._verts[i]
-                v = graph._verts[j]
+                eta = self.eta(graph)
+                u = eta[self._verts[i]]
+                v = eta[self._verts[j]]
                 u.merge(v)
                 graph.rehash()
                 if not graph in kids:
@@ -141,7 +148,13 @@ class Graph(object):
                 if not kid in graphs:
                     graphs.append(kid)
                     stack.append(kid)
-        return (graphs, links)
+        psAlg = {g : True for g in graphs}
+        for l in links:
+            if l[0].chi() - l[1].chi() == 1:
+                psAlg[l[1]] = False
+        return (graphs, psAlg)
+
+    def prim
 
 class Node(object):
     def __init__(self):
@@ -150,15 +163,15 @@ class Node(object):
         self._up = self
         self._rank = 0
     
-    def _find(self):
+    def find(self):
         if self._up != self:
-            self._up = self._up._find()
+            self._up = self._up.find()
         return self._up
 
     def merge(self, other):
         # find reps and quit if they are the same
-        find1 = self._find()
-        find2 = other._find()
+        find1 = self.find()
+        find2 = other.find()
         if find1 == find2:
             return
         
@@ -177,28 +190,22 @@ class Node(object):
         find2._nbrs = None
             
     def gens(self):
-        return sorted(self._find()._nbrs.keys())
+        return sorted(self.find()._nbrs.keys())
     
     def degree(self):
         return len(self.gens())
     
     def __getitem__(self, g):
-        nbrs = self._find()._nbrs
-        nbrs[g] = nbrs[g]._find()
+        nbrs = self.find()._nbrs
+        nbrs[g] = nbrs[g].find()
         return nbrs[g]
     
     def __setitem__(self, g, nbr):
         if g in self.gens():
             self[g].merge(nbr)
         else:
-            self._find()._nbrs[g] = nbr._find()
+            self.find()._nbrs[g] = nbr.find()
             nbr[g.inv()] = self
 
     def __rmul__(self, other): 
         return self[other]
-
-    def __eq__(self, other):
-        return super(object, self._find()) == super(object, other._find())
-
-    def __hash__(self):
-        return hash(super(object, self._find()))
