@@ -1,7 +1,15 @@
+from functools import total_ordering
+
+inf = float("inf")
+
+@total_ordering
 class Generator(object):
     def __init__(self, name, inverted = False):
         self.name = name
         self.inverted = inverted
+
+    def Name(self):
+        return self.name + ("^-1" if self.inverted else "")
         
     def inv(self):
         return Generator(self.name, not self.inverted)
@@ -20,19 +28,24 @@ class Graph(object):
     # make a basic singleton Stallings graph with 1 root
     def __init__(self):
         self.roots = [Node()]
-        self._verts = 0
+        self._verts = []
         self._hash = 0
         self.rehash()
+        self._desc = None
+        self._pi = None
         
     def rehash(self):
         count = 0
         labels = {}
         self.roots = [r.find() for r in self.roots]
+        stack = []
+        self._verts = []
         for r in self.roots:
             if not r in labels:
                 labels[r] = count
                 count += 1
-        stack = labels.keys()
+                stack.append(r)
+                self._verts.append(r)
         while len(stack) > 0:
             v = stack.pop()
             for g in v.gens():
@@ -40,7 +53,7 @@ class Graph(object):
                     labels[g * v] = count
                     count += 1
                     stack.append(g * v)
-        self._verts = labels.keys()
+                    self._verts.append(g * v)
         self._numEdges = sum([v.degree() for v in self._verts]) / 2
         self._hash = hash((tuple([labels[r] for r in self.roots]),
             tuple([(g, labels[v], labels[g*v]) for v in self._verts for g in v.gens()])))
@@ -63,7 +76,10 @@ class Graph(object):
             verts = set(self.roots)
             stack = self.roots[:]
             for i in range(len(self.roots)):
-                eta[self.roots[i]] = other.roots[i]
+                if not self.roots[i] in eta:
+                    eta[self.roots[i]] = other.roots[i]
+                elif not eta[self.roots[i]] == other.roots[i]:
+                    return None
             while len(stack) > 0:
                 v = stack.pop()
                 for g in v.gens():
@@ -82,6 +98,9 @@ class Graph(object):
 
     def __eq__(self, other):
         return self <= other and other <= self 
+        
+    def __ne__(self, other):
+        return not self == other
     
     def __add__(self, other):
         comb = Graph()
@@ -90,7 +109,11 @@ class Graph(object):
         return comb
 
     def __mul__(self, k):
-        return sum([self] * k)
+        if k < 1:
+            return NotImplemented
+        if k == 1:
+            return self
+        return self * (k-1) + self
     
     def copy(self):
         eta = {}
@@ -137,24 +160,70 @@ class Graph(object):
         return kids
 
     def descendents(self):
-        graphs = [self]
-        links = []
-        stack = [self]
-        while len(stack) > 0:
-            g = stack.pop()
-            kids = g.children()
-            for kid in kids:
-                links.append((g, kid))
-                if not kid in graphs:
-                    graphs.append(kid)
-                    stack.append(kid)
-        psAlg = {g : True for g in graphs}
-        for l in links:
-            if l[0].chi() - l[1].chi() == 1:
-                psAlg[l[1]] = False
-        return (graphs, psAlg)
+        if self._desc is None:
+            graphs = [self]
+            links = []
+            stack = [self]
+            while len(stack) > 0:
+                g = stack.pop()
+                kids = g.children()
+                for kid in kids:
+                    links.append((g, kid))
+                    if not kid in graphs:
+                        graphs.append(kid)
+                        stack.append(kid)
+            psAlg = {g : True for g in graphs}
+            for l in links:
+                if l[0].chi() - l[1].chi() == 1:
+                    psAlg[l[1]] = False
+            self._desc = (graphs, links, psAlg)
+        return self._desc
 
-    def prim
+    def pi(self):
+        if self._pi is None:
+            desc = self.descendents()
+            self._pi = max([-inf] + [d.chi() for d in desc[0] if self != d and desc[2][d]])
+        return self._pi
+        
+    def crit(self):
+        desc = self.descendents()
+        return [d for d in desc[0] if d != self and desc[2][d] and d.chi() == self.pi()]
+
+    def toCsv(self, filename):
+        count = 0
+        labels = {}
+        edges = []
+        for r in self.roots:
+            if r not in labels:
+                count += 1
+                labels[r] = count
+        stack = labels.keys()
+        while len(stack) > 0:
+            v = stack.pop()
+            for g in v.gens():
+                if g.inverted:
+                    continue
+                if not g * v in labels:
+                    count += 1
+                    labels[g * v] = count
+                    stack.append(g * v)
+                edges.append((str(labels[v]), str(labels[g * v]), g.Name()))
+        with open(filename, "w") as f:
+            f.writelines([",".join(e) + "\n" for e in edges])
+
+    def descendentsToCsv(self, filename):
+        desc = self.descendents()
+        count = 0
+        labels = {}
+        for g in desc[0]:
+            count += 1
+            labels[g] = count
+        edges = []
+        for e in desc[1]:
+            edges.append([str(labels[e[0]]), str(labels[e[1]])])
+        with open(filename, "w") as f:
+            f.writelines([",".join(e) + "\n" for e in edges])
+        
 
 class Node(object):
     def __init__(self):
