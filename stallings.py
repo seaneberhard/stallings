@@ -8,7 +8,7 @@ class Generator(object):
         self.name = name
         self.inverted = inverted
 
-    def Name(self):
+    def __str__(self):
         return self.name + ("^-1" if self.inverted else "")
         
     def inv(self):
@@ -22,8 +22,33 @@ class Generator(object):
         
     def __hash__(self):
         return hash((self.name, self.inverted))
-    
-    
+
+    def __rmul__(self, other):
+        return other * Word([self])
+
+class Word(list):
+    def __str__(self):
+        return " ".join([str(g) for g in self])
+
+    def __mul__(self, v):
+        if isinstance(v, self.__class__):
+            w = Word(self + v)
+            w.reduce()
+            return w
+        for g in self[::-1]:
+            v = g * v
+        return v
+
+    def inv(self):
+        return Word([g.inv() for g in self[::-1]])
+
+    def reduce(self):
+        if len(self) < 2:
+            return
+        Word(self[1:]).reduce()
+        if len(self) > 1 and self[0] == self[1].inv():
+            self[:2] = []
+
 class Graph(object):
     # make a basic singleton Stallings graph with 1 root
     def __init__(self):
@@ -134,6 +159,10 @@ class Graph(object):
         return graph
         
     @classmethod
+    def fromWord(cls, word):
+        return cls.fromWords([word])
+
+    @classmethod
     def fromWords(cls, words):
         graph = Graph()
         for word in words:
@@ -201,17 +230,16 @@ class Graph(object):
         while len(stack) > 0:
             v = stack.pop()
             for g in v.gens():
-                if g.inverted:
-                    continue
                 if not g * v in labels:
                     count += 1
                     labels[g * v] = count
                     stack.append(g * v)
-                edges.append((str(labels[v]), str(labels[g * v]), g.Name()))
+                if not g.inverted:
+                    edges.append((str(labels[v]), str(labels[g * v]), str(g)))
         with open(filename, "w") as f:
             f.writelines([",".join(e) + "\n" for e in edges])
 
-    def descendentsToCsv(self, filename):
+    def descendentsToCsv(self, filename, chi = ""):
         desc = self.descendents()
         count = 0
         labels = {}
@@ -223,7 +251,13 @@ class Graph(object):
             edges.append([str(labels[e[0]]), str(labels[e[1]])])
         with open(filename, "w") as f:
             f.writelines([",".join(e) + "\n" for e in edges])
-        
+        if chi != "":
+            with open(chi, "w") as f:
+                f.writelines([",".join([str(labels[g]), str(g.chi())]) + "\n" for g in desc[0]])
+
+    def csvs(self):
+        self.toCsv("g.csv")
+        self.descendentsToCsv("gd.csv", "gdchi.csv")
 
 class Node(object):
     def __init__(self):
