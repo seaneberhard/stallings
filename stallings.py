@@ -23,17 +23,14 @@ class Generator(object):
     def __hash__(self):
         return hash((self.name, self.inverted))
 
-    def __rmul__(self, other):
-        return other * Word([self])
-
 class Word(list):
     def __str__(self):
-        return " ".join([str(g) for g in self])
+        return "*".join([str(g) for g in self])
 
     def __mul__(self, v):
         if isinstance(v, self.__class__):
             w = Word(self + v)
-            w.reduce()
+            w.red()
             return w
         for g in self[::-1]:
             v = g * v
@@ -42,12 +39,21 @@ class Word(list):
     def inv(self):
         return Word([g.inv() for g in self[::-1]])
 
-    def reduce(self):
-        if len(self) < 2:
-            return
-        Word(self[1:]).reduce()
-        if len(self) > 1 and self[0] == self[1].inv():
-            self[:2] = []
+    def red(self):
+        i = 0
+        while i + 1 < len(self):
+            if self[i] == self[i+1].inv():
+                self[i:i+2] = []
+                i = max(i-1,0)
+            else:
+                i += 1
+
+    def __pow__(self, n):
+        w = Word(list(self) * abs(n))
+        if n < 0:
+            w = w.inv()
+        w.red()
+        return w
 
 class Graph(object):
     # make a basic singleton Stallings graph with 1 root
@@ -201,11 +207,11 @@ class Graph(object):
                     if not kid in graphs:
                         graphs.append(kid)
                         stack.append(kid)
-            psAlg = {g : True for g in graphs}
+            alg = {g : True for g in graphs}
             for l in links:
                 if l[0].chi() - l[1].chi() == 1:
-                    psAlg[l[1]] = False
-            self._desc = (graphs, links, psAlg)
+                    alg[l[1]] = False
+            self._desc = (graphs, links, alg)
         return self._desc
 
     def pi(self):
@@ -312,3 +318,10 @@ class Node(object):
 
     def __rmul__(self, other): 
         return self[other]
+
+
+
+### standard variables
+x = Word([Generator("x")])
+y = Word([Generator("y")])
+z = Word([Generator("z")])
